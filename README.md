@@ -38,6 +38,3 @@ In SSMS, run a query with Include Actual Execution Plan, right-click the plan, a
 ```
 python test_app.py
 ```
-
-## Not included yet
-Benchmark mode and deployment config from the documentation.
