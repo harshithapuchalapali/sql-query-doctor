@@ -1,0 +1,30 @@
+<?xml version="1.0" encoding="utf-8"?>
+<ShowPlanXML xmlns="http://schemas.microsoft.com/sqlserver/2004/07/showplan" Version="1.5">
+ <BatchSequence><Batch><Statements>
+  <StmtSimple StatementText="SELECT d.SalesOrderID, d.OrderQty, d.UnitPrice FROM Sales.SalesOrderDetail d WHERE d.ProductID = 870" StatementSubTreeCost="12.5">
+   <QueryPlan>
+    <MissingIndexes>
+     <MissingIndexGroup Impact="87.3">
+      <MissingIndex Database="[AdventureWorks]" Schema="[Sales]" Table="[SalesOrderDetail]">
+       <ColumnGroup Usage="EQUALITY"><Column Name="[ProductID]"/></ColumnGroup>
+       <ColumnGroup Usage="INCLUDE"><Column Name="[OrderQty]"/><Column Name="[UnitPrice]"/></ColumnGroup>
+      </MissingIndex>
+     </MissingIndexGroup>
+    </MissingIndexes>
+    <RelOp NodeId="0" PhysicalOp="Nested Loops" LogicalOp="Inner Join" EstimateRows="500" EstimatedTotalSubtreeCost="12.5">
+     <NestedLoops>
+      <RelOp NodeId="1" PhysicalOp="Clustered Index Scan" LogicalOp="Clustered Index Scan" EstimateRows="121317" EstimatedTotalSubtreeCost="9.2">
+       <Warnings><PlanAffectingConvert ConvertIssue="Seek Plan" Expression="CONVERT_IMPLICIT(int,[ProductID],0)"/></Warnings>
+       <IndexScan Ordered="0"><Object Database="[AdventureWorks]" Schema="[Sales]" Table="[SalesOrderDetail]" Index="[PK_SalesOrderDetail]" IndexKind="Clustered"/></IndexScan>
+       <RunTimeInformation><RunTimeCountersPerThread Thread="0" ActualRows="121317" ActualExecutions="1"/></RunTimeInformation>
+      </RelOp>
+      <RelOp NodeId="2" PhysicalOp="Key Lookup (Clustered)" LogicalOp="Key Lookup" EstimateRows="500" EstimatedTotalSubtreeCost="2.1">
+       <IndexScan Lookup="1"><Object Database="[AdventureWorks]" Schema="[Sales]" Table="[SalesOrderHeader]" Index="[PK_SalesOrderHeader]" IndexKind="Clustered"/></IndexScan>
+       <RunTimeInformation><RunTimeCountersPerThread Thread="0" ActualRows="120000" ActualExecutions="120000"/></RunTimeInformation>
+      </RelOp>
+     </NestedLoops>
+    </RelOp>
+   </QueryPlan>
+  </StmtSimple>
+ </Statements></Batch></BatchSequence>
+</ShowPlanXML>

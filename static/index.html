@@ -1,0 +1,453 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>SQL Query Doctor</title>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/d3/7.9.0/d3.min.js"></script>
+<style>
+/* Hallmark · pre-emit critique: P5 H5 E5 S4 R4 V4 */
+:root{
+  --paper:#f1f4f3;--paper-2:#e8eeec;--surface:#fff;--surface-2:#fafcfb;
+  --ink:#101a19;--ink-2:#2f3f3c;--muted:#66756f;
+  --line:#dce4e1;--line-strong:#c2cfcb;
+  --accent:#0c6b5c;--accent-ink:#fff;--accent-soft:#e0f0ec;--accent-ring:rgba(12,107,92,.28);
+  --high:#ad3527;--high-soft:#fbe9e6;
+  --med:#9c6712;--med-soft:#faf0dd;
+  --low:#276b51;--low-soft:#e5f1eb;
+  --shadow-sm:0 1px 2px rgba(14,32,29,.07);
+  --shadow:0 1px 2px rgba(14,32,29,.06),0 14px 30px -18px rgba(14,32,29,.35);
+  --radius:14px;
+  --font-display:ui-serif,Georgia,"Times New Roman",serif;
+  --font-body:ui-sans-serif,system-ui,-apple-system,"Segoe UI",sans-serif;
+  --font-mono:ui-monospace,"Cascadia Code",Consolas,monospace;
+}
+@media (prefers-color-scheme:dark){:root{
+  --paper:#0c1211;--paper-2:#0a0f0e;--surface:#141c1b;--surface-2:#121a19;
+  --ink:#e9f1ef;--ink-2:#c6d3d0;--muted:#8a9c97;
+  --line:#22302e;--line-strong:#30423f;
+  --accent:#57c8b4;--accent-ink:#07120f;--accent-soft:#12302a;--accent-ring:rgba(87,200,180,.3);
+  --high:#ff8977;--high-soft:#2d1a17;
+  --med:#e2ab4d;--med-soft:#2b2314;
+  --low:#63c99b;--low-soft:#12291f;
+  --shadow-sm:0 1px 2px rgba(0,0,0,.5);
+  --shadow:0 1px 2px rgba(0,0,0,.5),0 18px 34px -20px #000;
+}}
+*{box-sizing:border-box}
+html,body{overflow-x:clip}
+body{
+  margin:0;background:var(--paper);color:var(--ink);font:15px/1.6 var(--font-body);
+  -webkit-font-smoothing:antialiased;-webkit-text-size-adjust:100%;
+  background-image:radial-gradient(900px 380px at 12% -10%,var(--accent-soft),transparent 70%),
+                   radial-gradient(760px 340px at 96% 0%,var(--paper-2),transparent 65%);
+  background-repeat:no-repeat;
+}
+.wrap{max-width:1420px;margin:0 auto;padding:0 28px}
+@media(max-width:1024px){.wrap{padding:0 22px}}
+@media(max-width:640px){.wrap{padding:0 16px}}
+
+header{position:sticky;top:0;z-index:20;backdrop-filter:blur(12px);
+  background:color-mix(in srgb,var(--paper) 82%,transparent);border-bottom:1px solid var(--line)}
+.top{display:flex;flex-wrap:wrap;gap:14px;align-items:center;justify-content:space-between;
+  padding:14px 0;max-width:1420px;margin:0 auto;padding-left:28px;padding-right:28px}
+@media(max-width:1024px){.top{padding-left:22px;padding-right:22px}}
+.brand{display:flex;align-items:center;gap:12px;min-width:0}
+.mark{width:38px;height:38px;flex:none;border-radius:11px;background:var(--accent);color:var(--accent-ink);
+  display:grid;place-items:center;box-shadow:var(--shadow-sm)}
+.mark svg{display:block}
+.brand h1{margin:0;font:600 19px/1.25 var(--font-display);letter-spacing:-.01em}
+.brand span{display:block;font:500 12px/1.4 var(--font-body);color:var(--muted);
+  letter-spacing:.09em;text-transform:uppercase}
+.actions{display:flex;gap:8px;flex-wrap:wrap}
+
+button,label.btn{font:600 14px/1 var(--font-body);padding:10px 16px;border-radius:10px;
+  border:1px solid transparent;cursor:pointer;display:inline-flex;align-items:center;gap:7px;
+  transition:transform .12s ease,box-shadow .12s ease,background .12s ease,border-color .12s ease;
+  white-space:nowrap}
+.btn-primary{background:var(--accent);color:var(--accent-ink);box-shadow:var(--shadow-sm)}
+.btn-primary:hover{transform:translateY(-1px);box-shadow:var(--shadow)}
+.btn-primary:active{transform:translateY(0)}
+.btn-ghost{background:var(--surface);color:var(--ink-2);border-color:var(--line-strong)}
+.btn-ghost:hover{background:var(--surface-2);border-color:var(--muted);color:var(--ink);transform:translateY(-1px)}
+button:focus-visible,label.btn:focus-within,.finding:focus-visible,input[type=file]:focus-visible + label{
+  outline:2px solid var(--accent);outline-offset:2px}
+button[disabled]{opacity:.55;cursor:progress;transform:none!important}
+input[type=file]{position:absolute;opacity:0;width:1px;height:1px}
+
+main{padding:30px 0 64px}
+#status{min-height:22px;color:var(--muted);font-size:14px;display:flex;align-items:center;gap:9px}
+#status.err{color:var(--high);font-weight:600}
+.spin{width:14px;height:14px;border-radius:50%;border:2px solid var(--line-strong);
+  border-top-color:var(--accent);animation:spin .7s linear infinite;flex:none}
+@keyframes spin{to{transform:rotate(360deg)}}
+@media(prefers-reduced-motion:reduce){*{animation:none!important;transition:none!important}}
+
+/* empty state */
+.empty{border:1.5px dashed var(--line-strong);border-radius:22px;background:var(--surface);
+  padding:52px 28px;text-align:center;box-shadow:var(--shadow-sm);margin-top:8px}
+.empty .ico{width:56px;height:56px;border-radius:16px;background:var(--accent-soft);
+  display:grid;place-items:center;margin:0 auto 16px;color:var(--accent)}
+.empty strong{display:block;font:600 clamp(24px,4vw,32px)/1.2 var(--font-display);letter-spacing:-.02em;
+  margin-bottom:8px;overflow-wrap:anywhere}
+.empty p{color:var(--muted);max-width:56ch;margin:0 auto 22px}
+.steps{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:14px;max-width:760px;margin:34px auto 0;text-align:left}
+@media(max-width:760px){.steps{grid-template-columns:1fr}}
+.step{background:var(--surface-2);border:1px solid var(--line);border-radius:12px;padding:14px 16px}
+.step b{display:block;font-size:14px}
+.step span{color:var(--muted);font-size:13.5px}
+.step em{display:inline-grid;place-items:center;width:22px;height:22px;border-radius:7px;
+  background:var(--accent-soft);color:var(--accent);font:700 12px/1 var(--font-body);margin-bottom:8px;font-style:normal}
+
+/* results */
+#result{display:none;margin-top:20px}
+.querycard{background:var(--surface);border:1px solid var(--line);border-radius:var(--radius);
+  box-shadow:var(--shadow-sm);overflow:hidden;margin-bottom:20px}
+.cardhead{display:flex;align-items:center;justify-content:space-between;gap:12px;
+  padding:10px 14px;border-bottom:1px solid var(--line);background:var(--surface-2)}
+.cardhead span{font:600 11.5px/1 var(--font-body);letter-spacing:.1em;text-transform:uppercase;color:var(--muted)}
+.query{font:12.8px/1.65 var(--font-mono);padding:14px 16px;margin:0;white-space:pre-wrap;overflow-x:auto;color:var(--ink-2)}
+.grid{display:grid;grid-template-columns:minmax(0,1.55fr) minmax(0,1fr);gap:20px;align-items:start}
+@media(max-width:980px){.grid{grid-template-columns:minmax(0,1fr)}}
+.panel{background:var(--surface);border:1px solid var(--line);border-radius:var(--radius);
+  padding:16px 18px;margin-bottom:20px;box-shadow:var(--shadow-sm)}
+.panel h2{margin:0 0 4px;font:600 17px/1.3 var(--font-display);letter-spacing:-.01em}
+.panel .hint{color:var(--muted);font-size:13px;margin:0 0 12px}
+#graph{height:clamp(300px,58vh,430px);overflow:hidden;padding:0;position:relative;background:
+  linear-gradient(180deg,var(--surface),var(--surface-2))}
+#graph svg{width:100%;height:100%;cursor:grab;display:block;touch-action:none}
+#graph svg:active{cursor:grabbing}
+.node rect.card{fill:var(--surface);stroke:var(--line-strong);stroke-width:1.5;
+  filter:drop-shadow(0 2px 4px rgba(14,32,29,.10))}
+.node text{fill:var(--ink);text-anchor:middle;font:12px/1.4 var(--font-body);pointer-events:none}
+.node .op{font-weight:700;font-size:12.5px}
+.node .obj{fill:var(--muted);font-size:11.5px}
+.node .pct{font-size:11px;font-weight:700;letter-spacing:.02em}
+.node:hover rect.card{stroke:var(--accent)}
+.node.sel rect.card{stroke:var(--accent);stroke-width:2.5}
+.legend{display:flex;flex-wrap:wrap;gap:8px 18px;color:var(--muted);font-size:12.5px;margin:0 0 6px}
+.dot{display:inline-block;width:9px;height:9px;border-radius:3px;margin-right:6px;vertical-align:middle}
+.zoomit{position:absolute;right:12px;bottom:10px;font-size:11.5px;color:var(--muted);
+  background:var(--surface);border:1px solid var(--line);border-radius:8px;padding:4px 9px;pointer-events:none}
+
+#detail dl{display:grid;grid-template-columns:max-content minmax(0,1fr);gap:8px 18px;margin:0}
+#detail dt{color:var(--muted);font-size:13.5px}
+#detail dd{margin:0;font-weight:500;overflow-wrap:anywhere}
+
+/* findings */
+.sevbar{display:flex;flex-wrap:wrap;gap:8px;margin:2px 0 14px}
+.pill{display:inline-flex;align-items:center;gap:6px;font:600 12px/1 var(--font-body);
+  padding:6px 10px;border-radius:999px;background:var(--surface-2);border:1px solid var(--line);color:var(--ink-2)}
+.pill.high{background:var(--high-soft);border-color:transparent;color:var(--high)}
+.pill.medium{background:var(--med-soft);border-color:transparent;color:var(--med)}
+.pill.low{background:var(--low-soft);border-color:transparent;color:var(--low)}
+.finding{position:relative;border:1px solid var(--line);border-radius:12px;padding:13px 15px 13px 17px;
+  margin-bottom:11px;cursor:pointer;background:var(--surface-2);transition:border-color .12s,transform .12s,box-shadow .12s}
+.finding::before{content:"";position:absolute;left:0;top:12px;bottom:12px;width:3px;border-radius:3px;background:var(--line-strong)}
+.finding.high::before{background:var(--high)}.finding.medium::before{background:var(--med)}.finding.low::before{background:var(--low)}
+.finding:hover{transform:translateY(-1px);border-color:var(--line-strong);box-shadow:var(--shadow-sm)}
+.finding b{display:block;font-size:14.5px;margin-bottom:2px}
+.finding .sev{display:inline-block;font:600 11px/1 var(--font-body);letter-spacing:.08em;text-transform:uppercase;
+  color:var(--muted);margin-bottom:5px}
+.finding.high .sev{color:var(--high)}.finding.medium .sev{color:var(--med)}.finding.low .sev{color:var(--low)}
+.finding p{margin:0;color:var(--muted);font-size:13.5px}
+pre{position:relative;margin:10px 0 0;padding:11px 13px;background:var(--paper);
+  border:1px solid var(--line);border-radius:9px;overflow-x:auto;font:12.5px/1.6 var(--font-mono);color:var(--ink-2)}
+pre.sql{padding-right:78px}
+pre button{position:absolute;top:7px;right:7px;padding:4px 9px;font-size:11.5px;border-radius:7px}
+.muted{color:var(--muted)}
+#ai p{margin:0 0 10px}
+#ai b{display:block;margin:16px 0 6px;font:600 13px/1 var(--font-body);letter-spacing:.06em;text-transform:uppercase;color:var(--accent)}
+#ai b:first-child{margin-top:0}
+#ai .aiwait{display:flex;align-items:center;gap:9px;color:var(--muted);font-size:13.5px;margin:0}
+#ai .skel{display:grid;gap:10px;justify-items:start;margin-top:14px}
+#ai .skel i{display:block;height:11px;width:100%;border-radius:6px;background:linear-gradient(90deg,var(--surface-2) 25%,var(--line) 50%,var(--surface-2) 75%);background-size:200% 100%;animation:sk 1.3s ease-in-out infinite}
+#ai .skel i:nth-child(1){width:96%}
+#ai .skel i:nth-child(2){width:88%}
+#ai .skel i:nth-child(3){width:92%}
+#ai .skel i:nth-child(4){width:64%}
+@keyframes sk{0%{background-position:200% 0}100%{background-position:-200% 0}}
+ul{padding-left:18px;margin:4px 0 0}
+li{margin-bottom:5px;color:var(--ink-2)}
+footer{color:var(--muted);font-size:12.5px;text-align:center;padding:0 16px 34px}
+
+/* mobile: keep last so these beat the base rules above */
+@media(max-width:640px){
+  .top{padding-left:16px;padding-right:16px;padding-top:10px;padding-bottom:10px;gap:10px}
+  .actions{width:100%;gap:6px}
+  .actions .btn,.actions button{flex:1 1 auto;justify-content:center;min-height:44px;padding:12px 12px;font-size:13px}
+  main{padding:20px 0 44px}
+  .empty{padding:34px 18px;border-radius:16px}
+  .empty .ico{width:46px;height:46px;margin-bottom:12px}
+  .steps{margin-top:24px;gap:10px}
+  .query{padding:12px}
+  .panel{padding:14px}
+  #detail dl{grid-template-columns:minmax(0,1fr);gap:2px 0}
+  #detail dt{margin-top:8px;font-size:12.5px}
+  pre.sql{padding-top:42px;white-space:pre-wrap;overflow-wrap:anywhere}
+  pre button{top:6px;right:6px}
+  .legend{gap:6px 14px;font-size:12px}
+}
+</style>
+</head>
+<body>
+<header>
+  <div class="top">
+    <div class="brand">
+      <div class="mark" aria-hidden="true">
+        <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+          <path d="M2 12h5l2-6 3 12 2.5-8 1.8 4H22"/>
+        </svg>
+      </div>
+      <div>
+        <h1>SQL Query Doctor</h1>
+        <span>Execution plan analysis</span>
+      </div>
+    </div>
+    <div class="actions">
+      <input id="file" type="file" accept=".sqlplan,.xml">
+      <label class="btn btn-primary" for="file">
+        <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 16V4m0 0L7 9m5-5 5 5"/><path d="M4 17v2a1 1 0 0 0 1 1h14a1 1 0 0 0 1-1v-2"/></svg>
+        Upload plan
+      </label>
+      <button id="sample" class="btn-ghost" type="button">Try a sample plan</button>
+      <button id="reset" class="btn-ghost" type="button" style="display:none">Go home</button>
+    </div>
+  </div>
+</header>
+
+<main class="wrap">
+  <div id="status" role="status" aria-live="polite"></div>
+
+  <div id="empty" class="empty">
+    <div class="ico" aria-hidden="true">
+      <svg width="26" height="26" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
+        <path d="M9 3h6l4 4v14H5V3z"/><path d="M9 3v5h6" opacity=".45"/><path d="M8 13h8M8 17h5"/>
+      </svg>
+    </div>
+    <strong>No plan loaded yet</strong>
+    <p>Upload a SQL Server execution plan and see exactly where the time goes — plus the fix, in plain English.</p>
+    <div class="steps">
+      <div class="step"><em>1</em><b>Save the plan</b><span>In SSMS, use Save Execution Plan As…</span></div>
+      <div class="step"><em>2</em><b>Upload the file</b><span>.sqlplan or .xml, up to 16&nbsp;MB</span></div>
+      <div class="step"><em>3</em><b>Read the diagnosis</b><span>Cost hotspots, warnings and suggested SQL</span></div>
+    </div>
+  </div>
+
+  <div id="result">
+    <div class="querycard">
+      <div class="cardhead"><span>Query</span><span id="qmeta"></span></div>
+      <pre class="query" id="stmt"></pre>
+    </div>
+    <div class="grid">
+      <div>
+        <div class="panel">
+          <h2>Execution plan</h2>
+          <p class="hint">Thickness follows row count. Colour follows share of total cost.</p>
+          <div class="legend">
+            <span><i class="dot" style="background:var(--high)"></i>30%+ of cost</span>
+            <span><i class="dot" style="background:var(--med)"></i>10–30%</span>
+            <span><i class="dot" style="background:var(--low)"></i>under 10%</span>
+          </div>
+          <div id="graph"><div class="zoomit">Pinch or scroll to zoom · drag to pan</div></div>
+        </div>
+        <div class="panel" id="detail"><h2>Operator details</h2><p class="hint">Select an operator in the plan or a finding to see details.</p></div>
+        <div class="panel"><h2>Explanation</h2><div id="ai"></div></div>
+      </div>
+      <div>
+        <div class="panel">
+          <h2>What we found</h2>
+          <div class="sevbar" id="sevbar"></div>
+          <div id="findings"></div>
+        </div>
+      </div>
+    </div>
+  </div>
+</main>
+
+<footer>Runs locally. Plans are parsed on your machine; only a summary is sent to Gemini when AI explanations are enabled.</footer>
+
+<script>
+const $ = s => document.querySelector(s);
+const clean = s => (s || '').replace(/[\[\]]/g, '');
+const el = (tag, text, cls) => { const e = document.createElement(tag); if (text != null) e.textContent = text; if (cls) e.className = cls; return e; };
+const heat = p => p >= 30 ? 'var(--high)' : p >= 10 ? 'var(--med)' : 'var(--low)';
+const trunc = (s, n) => s.length > n ? s.slice(0, n - 1) + '…' : s;
+let data = null, zoom = null, busy = false, runId = 0;
+const KEY = 'sqd.last';
+
+// Keep the current result in sessionStorage so a page reload (or accidental F5) restores it.
+function remember(patch) {
+  try {
+    const prev = JSON.parse(sessionStorage.getItem(KEY) || '{}');
+    sessionStorage.setItem(KEY, JSON.stringify({ ...prev, ...patch }));
+  } catch {}
+}
+
+function setStatus(msg, err, spin) {
+  const s = $('#status'); s.className = err ? 'err' : ''; s.replaceChildren();
+  if (spin) s.append(el('span', null, 'spin'));
+  s.append(document.createTextNode(msg || ''));
+}
+function setBusy(b) {
+  busy = b;
+  $('#sample').disabled = b;
+  document.querySelector('label.btn').style.opacity = b ? .55 : 1;
+  document.querySelector('label.btn').style.pointerEvents = b ? 'none' : '';
+}
+
+async function run(fd) {
+  if (busy) return;
+  const id = ++runId;
+  setBusy(true); setStatus('Analyzing the plan…', false, true);
+  try {
+    const r = await fetch('/api/analyze', { method: 'POST', body: fd });
+    const d = await r.json();
+    if (!r.ok) throw new Error(d.error || 'The request failed.');
+    data = d; render(d); setStatus(''); $('#reset').style.display = '';
+    remember({ data: d, ai: null, aiStatus: 'loading' });
+    loadAi(id);
+  } catch (e) { setStatus(e.message, true); }
+  setBusy(false);
+}
+async function loadAi(id) {
+  const { findings, ...plan } = data;
+  try {
+    const r = await fetch('/api/explain', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ plan, findings })
+    });
+    const d = await r.json();
+    if (!r.ok) throw new Error(d.error || 'The request failed.');
+    if (id !== runId) return;
+    remember({ ai: d.ai, aiStatus: d.ai_status });
+    renderAi(d.ai, d.ai_status);
+  } catch (e) { if (id === runId) { remember({ aiStatus: e.message }); renderAi(null, e.message); } }
+}
+$('#file').onchange = e => { const f = e.target.files[0]; if (!f) return; const fd = new FormData(); fd.append('plan', f); run(fd); e.target.value = ''; };
+$('#sample').onclick = () => { const fd = new FormData(); fd.append('sample', '1'); run(fd); };
+$('#reset').onclick = () => {
+  data = null;
+  sessionStorage.removeItem(KEY);
+  $('#result').style.display = 'none';
+  $('#empty').style.display = '';
+  $('#reset').style.display = 'none';
+  setStatus('');
+};
+
+// Restore the result after a reload instead of dropping back to the empty page.
+(function restore() {
+  let saved = null;
+  try { saved = JSON.parse(sessionStorage.getItem(KEY) || 'null'); } catch {}
+  if (!saved || !saved.data) return;
+  data = saved.data;
+  render(saved.data);
+  $('#reset').style.display = '';
+  if (saved.ai) renderAi(saved.ai, 'ok');
+  else if (saved.aiStatus && saved.aiStatus !== 'loading') renderAi(null, saved.aiStatus);
+  else renderAi(null, 'The explanation was still being written when the page reloaded. Upload the plan again to regenerate it.');
+})();
+
+function copyBtn(text) {
+  const b = el('button', 'Copy', 'btn-ghost'); b.type = 'button';
+  b.onclick = async () => { try { await navigator.clipboard.writeText(text); b.textContent = 'Copied'; setTimeout(() => b.textContent = 'Copy', 1500); } catch { b.textContent = 'Copy failed'; } };
+  return b;
+}
+function sqlBlock(sql) { const p = el('pre', sql, 'sql'); p.append(copyBtn(sql)); return p; }
+
+function render(d) {
+  $('#empty').style.display = 'none'; $('#result').style.display = 'block';
+  const stmt = d.statement || '(query text not included in the plan)';
+  $('#stmt').textContent = stmt;
+  $('#qmeta').textContent = stmt.length.toLocaleString() + ' chars';
+  draw(d.tree);
+
+  const counts = { high: 0, medium: 0, low: 0 };
+  d.findings.forEach(x => { if (counts[x.severity] != null) counts[x.severity]++; });
+  const bar = $('#sevbar'); bar.replaceChildren();
+  const total = d.findings.length;
+  bar.append(el('span', total ? `${total} finding${total === 1 ? '' : 's'}` : 'Nothing flagged', 'pill'));
+  [['high', 'high'], ['medium', 'medium'], ['low', 'low']].forEach(([k, label]) => {
+    if (counts[k]) bar.append(el('span', `${counts[k]} ${label}`, 'pill ' + k));
+  });
+
+  const f = $('#findings'); f.replaceChildren();
+  if (!total) f.append(el('p', 'No common problems detected in this plan.', 'muted'));
+  d.findings.forEach(x => {
+    const box = el('div', null, 'finding ' + x.severity); box.tabIndex = 0;
+    box.append(el('span', x.severity[0].toUpperCase() + x.severity.slice(1) + ' priority', 'sev'),
+      el('b', x.title), el('p', x.detail));
+    if (x.fix_sql) box.append(sqlBlock(x.fix_sql));
+    const go = () => { if (x.node_id != null) select(x.node_id); };
+    box.onclick = go; box.onkeydown = e => { if (e.key === 'Enter') go(); };
+    f.append(box);
+  });
+
+  renderAi(null, 'loading');
+}
+
+function renderAi(ai, status) {
+  const a = $('#ai'); a.replaceChildren();
+  if (status === 'loading') {
+    const w = el('p', null, 'aiwait');
+    w.append(el('span', null, 'spin'), document.createTextNode('Writing the explanation…'));
+    a.append(w);
+    const s = el('div', 'skel');
+    for (let i = 0; i < 4; i++) s.append(el('i'));
+    a.append(s);
+    return;
+  }
+  if (!ai) { a.append(el('p', status || 'No explanation available.', 'muted')); return; }
+  a.append(el('p', ai.summary));
+  const list = (title, items) => { if (!items || !items.length) return; a.append(el('b', title)); const u = el('ul'); items.forEach(i => u.append(el('li', i))); a.append(u); };
+  list('Why it is slow', ai.why_slow);
+  (ai.fixes || []).forEach(x => { a.append(el('b', x.title), el('p', x.explanation)); if (x.sql) a.append(sqlBlock(x.sql)); });
+  list('Things to watch', ai.risks);
+}
+
+function draw(tree) {
+  const box = $('#graph'); box.replaceChildren(el('div', 'Pinch or scroll to zoom · drag to pan', 'zoomit'));
+  const svg = d3.select(box).append('svg'), g = svg.append('g');
+  zoom = d3.zoom().scaleExtent([.3, 2]).on('zoom', e => g.attr('transform', e.transform));
+  svg.call(zoom);
+  const root = d3.hierarchy(tree, n => n.children);
+  // Narrow screens get a top-down tree: a horizontal one is wider than a phone.
+  const vert = box.clientWidth < 760;
+  d3.tree().nodeSize(vert ? [224, 104] : [96, 258])(root);
+  const link = vert ? d3.linkVertical().x(n => n.x).y(n => n.y) : d3.linkHorizontal().x(n => n.y).y(n => n.x);
+  g.selectAll('path').data(root.links()).join('path').attr('fill', 'none').attr('stroke', 'var(--line-strong)')
+    .attr('stroke-opacity', .9)
+    .attr('stroke-width', l => Math.max(1.2, Math.log10(l.target.data.est_rows + 1) * 1.6))
+    .attr('d', link);
+  const n = g.selectAll('g.node').data(root.descendants()).join('g').attr('class', 'node').attr('data-id', d => d.data.node_id)
+    .attr('transform', d => vert ? `translate(${d.x},${d.y})` : `translate(${d.y},${d.x})`)
+    .on('click', (e, d) => select(d.data.node_id));
+  n.append('rect').attr('class', 'card').attr('x', -100).attr('y', -34).attr('width', 200).attr('height', 68).attr('rx', 11);
+  n.append('rect').attr('x', -100).attr('y', -26).attr('width', 4).attr('height', 52).attr('rx', 2)
+    .attr('fill', d => heat(d.data.cost_pct));
+  n.append('text').attr('class', 'op').attr('y', -10).text(d => trunc(d.data.physical_op, 26));
+  n.append('text').attr('class', 'obj').attr('y', 7).text(d => trunc(clean(d.data.object) || clean(d.data.index), 28));
+  n.append('text').attr('class', 'pct').attr('y', 24).attr('fill', d => heat(d.data.cost_pct))
+    .text(d => d.data.cost_pct + '% of cost');
+  svg.call(zoom.transform, vert
+    ? d3.zoomIdentity.translate(box.clientWidth / 2, 34)
+    : d3.zoomIdentity.translate(118, box.clientHeight / 2));
+}
+
+function select(id) {
+  d3.selectAll('.node').classed('sel', function () { return this.dataset.id == id; });
+  let hit = null; (function find(n) { if (n.node_id === id) hit = n; n.children.forEach(find); })(data.tree);
+  if (!hit) return;
+  const tbl = clean(hit.object).split('.').pop();
+  const warns = hit.warnings.map(w => w.type)
+    .concat((data.warnings || []).filter(w => tbl && w.detail.includes(tbl)).map(w => w.type));
+  const rows = [['Operator', hit.physical_op], ['Object', clean(hit.object) || '-'], ['Index', clean(hit.index) || '-'],
+    ['Share of plan cost', hit.cost_pct + '%'], ['Estimated rows', Math.round(hit.est_rows).toLocaleString()],
+    ['Actual rows', hit.actual_rows == null ? 'not in this plan' : Math.round(hit.actual_rows).toLocaleString()],
+    ['Warnings', warns.join(', ') || 'none']];
+  const dl = el('dl'); rows.forEach(([k, v]) => dl.append(el('dt', k), el('dd', v)));
+  $('#detail').replaceChildren(el('h2', 'Operator details'), dl);
+}
+</script>
+</body>
+</html>
