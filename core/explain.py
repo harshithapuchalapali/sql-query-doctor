@@ -1,12 +1,11 @@
 """Optional plain-English explanation using the Gemini API free tier (REST, no SDK)."""
 import hashlib
 import json
-import os
 import time
 import urllib.error
 import urllib.request
 
-from rules import walk
+from core.plan import walk
 
 SYSTEM = (
     "You are a SQL Server performance tutor explaining an execution plan to a beginner. "
@@ -14,15 +13,8 @@ SYSTEM = (
     'Reply with JSON only: {"summary": str, "why_slow": [str], '
     '"fixes": [{"title": str, "explanation": str, "sql": str}], "risks": [str]}'
 )
+# shortcut: unbounded, per-process cache; cap it or move to a store before multi-user deployment.
 _cache = {}
-
-# Load .env next to this file so the key works without exporting it in every shell.
-_ENV = os.path.join(os.path.dirname(os.path.abspath(__file__)), ".env")
-if os.path.exists(_ENV):
-    for line in open(_ENV, encoding="utf-8"):
-        k, _, v = line.strip().partition("=")
-        if k and not k.startswith("#"):
-            os.environ.setdefault(k, v)
 
 
 def _post(url, key, body, tries=3):
@@ -50,10 +42,9 @@ def _post(url, key, body, tries=3):
     raise RuntimeError(last)
 
 
-def _ask(key, body):
+def _ask(key, model, body):
     # Each free-tier model has its own daily quota, so move to the next one when one is used up.
-    models = dict.fromkeys([os.environ.get("GEMINI_MODEL") or "gemini-flash-lite-latest",
-                            "gemini-3.6-flash", "gemini-flash-lite-latest"])
+    models = dict.fromkeys([model, "gemini-3.6-flash", "gemini-flash-lite-latest"])
     errors = []
     for model in models:
         url = f"https://generativelanguage.googleapis.com/v1beta/models/{model}:generateContent"
@@ -65,8 +56,7 @@ def _ask(key, body):
     raise RuntimeError("; ".join(errors))
 
 
-def explain(plan, findings):
-    key = os.environ.get("GEMINI_API_KEY")
+def explain(plan, findings, key, model):
     if not key:
         return None, "Set GEMINI_API_KEY to turn on AI explanations. Rule-based findings are shown below."
     top = sorted(walk(plan["tree"]), key=lambda n: -n["cost_pct"])[:5]
@@ -78,12 +68,11 @@ def explain(plan, findings):
     h = hashlib.sha256(blob.encode()).hexdigest()
     if h in _cache:
         return _cache[h], "ok"
-    model = os.environ.get("GEMINI_MODEL", "gemini-flash-lite-latest")
     body = {"systemInstruction": {"parts": [{"text": SYSTEM}]},
             "contents": [{"parts": [{"text": blob}]}],
             "generationConfig": {"responseMimeType": "application/json"}}
     try:
-        data = _ask(key, body)
+        data = _ask(key, model, body)
     except Exception as e:
         return None, f"The AI is unavailable right now ({e}). Rule-based findings are still shown."
     _cache[h] = data

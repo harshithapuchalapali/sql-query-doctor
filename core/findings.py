@@ -1,4 +1,6 @@
 """Rule engine: turns the parsed plan into factual findings (no AI involved)."""
+from core.plan import walk
+
 SCANS = {"Table Scan", "Clustered Index Scan", "Index Scan"}
 WARNINGS = {
     "PlanAffectingConvert": ("high", "Implicit conversion",
@@ -11,12 +13,6 @@ WARNINGS = {
         "A join has no join condition, which can produce a huge cross product."),
 }
 ORDER = {"high": 0, "medium": 1, "low": 2}
-
-
-def walk(n):
-    yield n
-    for c in n["children"]:
-        yield from walk(c)
 
 
 def _index_sql(m):

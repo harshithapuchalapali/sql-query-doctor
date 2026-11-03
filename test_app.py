@@ -9,6 +9,9 @@ assert r.status_code == 200, r.data
 analysis = r.get_json()
 plan = {k: v for k, v in analysis.items() if k != "findings"}
 
+# A request with no file is a clean 400, not a 500.
+assert client.post("/api/analyze", data={}, content_type="multipart/form-data").status_code == 400
+
 # Bad bodies are rejected instead of crashing the route.
 assert client.post("/api/explain", data="nope").status_code == 400
 assert client.post("/api/explain", json={"plan": "x", "findings": []}).status_code == 400

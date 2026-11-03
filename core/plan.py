@@ -4,6 +4,16 @@ from lxml import etree
 NS = {"s": "http://schemas.microsoft.com/sqlserver/2004/07/showplan"}
 
 
+class PlanError(ValueError):
+    """The uploaded file is not a usable SQL Server execution plan."""
+
+
+def walk(n):
+    yield n
+    for c in n["children"]:
+        yield from walk(c)
+
+
 def _f(v):
     try:
         return float(v)
@@ -53,12 +63,12 @@ def parse(xml_bytes):
     try:
         root = etree.fromstring(xml_bytes, parser)
     except etree.XMLSyntaxError as e:
-        raise ValueError(f"This file is not valid XML: {e}")
+        raise PlanError(f"This file is not valid XML: {e}")
     if etree.QName(root).localname != "ShowPlanXML":
-        raise ValueError("This is not a SQL Server execution plan (ShowPlanXML expected).")
+        raise PlanError("This is not a SQL Server execution plan (ShowPlanXML expected).")
     stmts = root.xpath("//s:StmtSimple[s:QueryPlan/s:RelOp]", namespaces=NS)
     if not stmts:
-        raise ValueError("No query plan found in this file.")
+        raise PlanError("No query plan found in this file.")
     stmt = max(stmts, key=lambda s: _f(s.get("StatementSubTreeCost")))
     qp = stmt.find("s:QueryPlan", NS)
     tree = _node(qp.find("s:RelOp", NS))
