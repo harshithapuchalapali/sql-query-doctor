@@ -36,7 +36,11 @@ def analyze_route():
     except PlanError as e:
         return jsonify(error=str(e)), 400
     findings = analyze(plan)
-    return jsonify({**plan, "findings": findings})
+    try:
+        return jsonify({**plan, "findings": findings})
+    except RecursionError:
+        # Python's JSON encoder is recursive, so a plan nested deeper than this cannot be returned.
+        return jsonify(error="This plan is nested too deeply to display. Upload a plan with fewer levels."), 400
 
 
 @bp.post("/api/explain")
