@@ -9,9 +9,12 @@ class PlanError(ValueError):
 
 
 def walk(n):
-    yield n
-    for c in n["children"]:
-        yield from walk(c)
+    # Iterative: plans from queries with long nested-loop chains are deeper than Python's recursion limit.
+    stack = [n]
+    while stack:
+        cur = stack.pop()
+        yield cur
+        stack.extend(reversed(cur["children"]))
 
 
 def _f(v):
@@ -29,7 +32,18 @@ def _warn(w):
 
 
 def _node(el):
-    kids = [_node(c) for c in el.xpath("./*/s:RelOp", namespaces=NS)]
+    root = _node_data(el)
+    stack = [(el, root)]
+    while stack:
+        el, node = stack.pop()
+        for c in el.xpath("./*/s:RelOp", namespaces=NS):
+            kid = _node_data(c)
+            node["children"].append(kid)
+            stack.append((c, kid))
+    return root
+
+
+def _node_data(el):
     sub = _f(el.get("EstimatedTotalSubtreeCost"))
     obj = el.xpath("./*/s:Object", namespaces=NS)
     run = el.xpath("./s:RunTimeInformation/s:RunTimeCountersPerThread", namespaces=NS)
@@ -44,22 +58,36 @@ def _node(el):
         "table_rows": _f(el.get("TableCardinality")),
         "row_goal": el.get("EstimateRowsWithoutRowGoal") is not None,
         "subtree_cost": sub,
-        "own_cost": max(0.0, sub - sum(k["subtree_cost"] for k in kids)),
+        "own_cost": 0.0,  # filled in by _costs once the children are known
         "object": ".".join(o.get(a) for a in ("Schema", "Table") if o is not None and o.get(a)) if o is not None else "",
         "index": o.get("Index", "") if o is not None else "",
         "warnings": [_warn(w) for w in el.xpath("./s:Warnings/*", namespaces=NS)],
-        "children": kids,
+        "children": [],
     }
 
 
+def _costs(root):
+    stack = [(root, False)]
+    while stack:
+        node, kids_done = stack.pop()
+        if kids_done:
+            node["own_cost"] = max(0.0, node["subtree_cost"] -
+                                   sum(k["subtree_cost"] for k in node["children"]))
+        else:
+            stack.append((node, True))
+            stack.extend((c, False) for c in node["children"])
+
+
 def _pct(n, total):
-    n["cost_pct"] = round(100 * n["own_cost"] / total, 1) if total else 0.0
-    for c in n["children"]:
-        _pct(c, total)
+    stack = [n]
+    while stack:
+        node = stack.pop()
+        node["cost_pct"] = round(100 * node["own_cost"] / total, 1) if total else 0.0
+        stack.extend(node["children"])
 
 
 def parse(xml_bytes):
-    parser = etree.XMLParser(resolve_entities=False, no_network=True)
+    parser = etree.XMLParser(resolve_entities=False, no_network=True, huge_tree=True)
     try:
         root = etree.fromstring(xml_bytes, parser)
     except etree.XMLSyntaxError as e:
@@ -73,6 +101,7 @@ def parse(xml_bytes):
     qp = stmt.find("s:QueryPlan", NS)
     tree = _node(qp.find("s:RelOp", NS))
     total = tree["subtree_cost"]
+    _costs(tree)
     _pct(tree, total)
     missing = []
     for g in qp.xpath("./s:MissingIndexes/s:MissingIndexGroup", namespaces=NS):

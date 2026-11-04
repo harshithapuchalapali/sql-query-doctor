@@ -18,7 +18,7 @@ ORDER = {"high": 0, "medium": 1, "low": 2}
 def _index_sql(m):
     keys = (m["columns"].get("EQUALITY") or []) + (m["columns"].get("INEQUALITY") or [])
     inc = m["columns"].get("INCLUDE") or []
-    if not keys:
+    if not keys or not m["table"]:
         return None
     name = "IX_" + m["table"].strip("[]") + "_" + "_".join(c.strip("[]") for c in keys)
     sql = f"CREATE NONCLUSTERED INDEX [{name}]\n  ON {m['schema']}.{m['table']} ({', '.join(keys)})"
@@ -27,6 +27,7 @@ def _index_sql(m):
 
 def _node_for(plan, text):
     """Operator that touches the table named in text, so a finding can select it in the plan graph."""
+    text = text or ""
     for n in walk(plan["tree"]):
         table = n["object"].split(".")[-1].strip("[]")
         if table and f"[{table}]" in text:
